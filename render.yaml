@@ -1,0 +1,31 @@
+services:
+  # Backend Web Service
+  - type: web
+    name: placement-cell-backend
+    runtime: docker
+    dockerfilePath: backend/Dockerfile
+    dockerContext: backend
+    plan: free
+    region: oregon
+    envVars:
+      - key: DATABASE_URL
+        value: sqlite:///./placement_cell.db
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ALGORITHM
+        value: HS256
+      - key: ACCESS_TOKEN_EXPIRE_MINUTES
+        value: 1440
+
+  # Frontend Static Site
+  - type: web
+    name: placement-cell-frontend
+    runtime: static
+    buildCommand: cd frontend && npm install && npm run build
+    staticPublishPath: frontend/dist
+    plan: free
+    region: oregon
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
