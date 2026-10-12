@@ -8,9 +8,23 @@ from typing import Any
 
 import pandas as pd
 
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
-OFFER_EXCEL_PATH = PROJECT_ROOT / "Offer Details - 2023-2027 Batch.xlsx"
 OFFERS_SHEET = "Offers"
+
+
+def _find_offer_excel() -> Path:
+    current = Path(__file__).resolve()
+    parents = current.parents
+    candidates: list[Path | None] = [
+        parents[2] / "Offer Details - 2023-2027 Batch.xlsx" if len(parents) > 2 else None,  # backend/
+        parents[3] / "Offer Details - 2023-2027 Batch.xlsx" if len(parents) > 3 else None,  # repo root
+        Path("/app/Offer Details - 2023-2027 Batch.xlsx"),                                    # Docker container WORKDIR /app
+        Path.cwd() / "Offer Details - 2023-2027 Batch.xlsx",
+        Path.cwd() / "backend" / "Offer Details - 2023-2027 Batch.xlsx",
+    ]
+    for c in candidates:
+        if c is not None and c.is_file():
+            return c
+    return parents[2] / "Offer Details - 2023-2027 Batch.xlsx" if len(parents) > 2 else Path("Offer Details - 2023-2027 Batch.xlsx")
 
 
 def _cell_str(value: Any) -> str:
@@ -51,9 +65,10 @@ def _ctc_number(value: Any) -> float | None:
 
 @lru_cache(maxsize=1)
 def _load_dataframe() -> pd.DataFrame:
-    if not OFFER_EXCEL_PATH.is_file():
-        raise FileNotFoundError(f"Internship Excel not found: {OFFER_EXCEL_PATH}")
-    return pd.read_excel(OFFER_EXCEL_PATH, sheet_name=OFFERS_SHEET)
+    path = _find_offer_excel()
+    if not path.is_file():
+        raise FileNotFoundError(f"Internship Excel not found at: {path}")
+    return pd.read_excel(path, sheet_name=OFFERS_SHEET)
 
 
 def clear_internship_cache() -> None:
@@ -105,5 +120,5 @@ def get_internship_records() -> dict[str, Any]:
             "company_types": types,
             "organized_by": organizers,
         },
-        "source_file": OFFER_EXCEL_PATH.name,
+        "source_file": _find_offer_excel().name,
     }
