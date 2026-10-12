@@ -305,6 +305,27 @@ async def get_company_students_endpoint(
         placement = db.scalar(
             select(Placement).where(Placement.student_id == s.id, Placement.drive_id.in_(drive_ids))
         )
+        cleared_stages = db.scalars(
+            select(PlacementStage.stage_order)
+            .join(StudentStageResult, StudentStageResult.stage_id == PlacementStage.id)
+            .where(
+                StudentStageResult.student_id == s.id,
+                PlacementStage.drive_id.in_(drive_ids),
+                StudentStageResult.status == "QUALIFIED"
+            )
+        ).all()
+        max_cleared = max(cleared_stages) if cleared_stages else 0
+
+        if placement:
+            cand_status = "PLACED"
+            highest_round = "Placed"
+        elif max_cleared > 0:
+            cand_status = f"Round {max_cleared}"
+            highest_round = f"Round {max_cleared}"
+        else:
+            cand_status = "REGISTERED"
+            highest_round = "Registered"
+
         items.append({
             "student_id": s.id,
             "register_number": s.register_number,
@@ -312,6 +333,8 @@ async def get_company_students_endpoint(
             "department": s.department,
             "drive_name": company.name + " Campus Drive",
             "is_placed": placement is not None,
+            "candidate_status": cand_status,
+            "highest_round": highest_round,
             "package_ctc": placement.package_ctc if placement else None
         })
 

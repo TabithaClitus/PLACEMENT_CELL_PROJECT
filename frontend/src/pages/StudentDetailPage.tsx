@@ -110,7 +110,7 @@ const StudentDetailPage: React.FC = () => {
                     { label: "Registered Companies", value: registeredCompanies, color: "text-indigo-600 dark:text-indigo-400" },
                     { label: "Unplaced Drives", value: unplacedCompanies, color: "text-rose-600 dark:text-rose-400" },
                     { label: "Placed Companies", value: placedCompanies, color: "text-emerald-600 dark:text-emerald-400" },
-                    { label: "Highest Round", value: highestRound, color: "text-cyan-600 dark:text-cyan-400" },
+                    { label: "Highest Round", value: highestRound > 0 ? `Round ${highestRound}` : "Registered", color: "text-cyan-600 dark:text-cyan-400" },
                 ].map((kpi) => (
                     <div key={kpi.label} className="bg-white dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 rounded-xl p-4 text-center">
                         <p className={`text-2xl font-bold ${kpi.color}`}>{kpi.value}</p>
@@ -129,40 +129,44 @@ const StudentDetailPage: React.FC = () => {
                 {student.drives_history.length === 0 ? (
                     <p className="text-sm text-slate-600 dark:text-slate-400">No drive registrations found.</p>
                 ) : (
-                    student.drives_history.map((drive) => (
-                        <div key={drive.drive_id} className="bg-white dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 rounded-xl p-5">
-                            <div className="flex items-center justify-between mb-3">
-                                <div>
-                                    <h3 className="text-sm font-semibold text-slate-900 dark:text-white">{drive.company_name}</h3>
-                                    <p className="text-xs text-slate-600 dark:text-slate-400">{drive.drive_name} · {drive.academic_year}</p>
-                                </div>
-                                {drive.placement ? (
-                                    <StatusBadge status={drive.placement.status} />
-                                ) : (
-                                    <StatusBadge status="REGISTERED" />
-                                )}
-                            </div>
+                    student.drives_history.map((drive) => {
+                        const driveQualified = drive.stage_results.filter(s => s.status === "QUALIFIED");
+                        const driveMaxOrder = driveQualified.length > 0 ? Math.max(...driveQualified.map(s => s.stage_order)) : 0;
+                        const driveStatus = drive.placement
+                            ? drive.placement.status
+                            : (driveMaxOrder > 0 ? `Round ${driveMaxOrder}` : "REGISTERED");
 
-                            {/* Stage Results Timeline */}
-                            {drive.stage_results.length > 0 && (
-                                <div className="flex flex-wrap gap-2 mt-2">
-                                    {drive.stage_results.map((sr, i) => (
-                                        <div key={i} className="flex items-center space-x-1.5 bg-slate-50 dark:bg-slate-800/60 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700/40">
-                                            <span className="text-xs text-slate-600 dark:text-slate-400 font-medium">R{sr.stage_order}:</span>
-                                            <span className="text-xs font-medium text-slate-800 dark:text-slate-200">{sr.stage_name}</span>
-                                            <StatusBadge status={sr.status} className="text-[10px] px-1.5 py-0" />
-                                        </div>
-                                    ))}
+                        return (
+                            <div key={drive.drive_id} className="bg-white dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 rounded-xl p-5">
+                                <div className="flex items-center justify-between mb-3">
+                                    <div>
+                                        <h3 className="text-sm font-semibold text-slate-900 dark:text-white">{drive.company_name}</h3>
+                                        <p className="text-xs text-slate-600 dark:text-slate-400">{drive.drive_name} · {drive.academic_year}</p>
+                                    </div>
+                                    <StatusBadge status={driveStatus} />
                                 </div>
-                            )}
+
+                                {/* Stage Results Timeline */}
+                                {drive.stage_results.length > 0 && (
+                                    <div className="flex flex-wrap gap-2 mt-2">
+                                        {drive.stage_results.map((sr, i) => (
+                                            <div key={i} className="flex items-center space-x-1.5 bg-slate-50 dark:bg-slate-800/60 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700/40">
+                                                <span className="text-xs text-slate-600 dark:text-slate-400 font-medium">R{sr.stage_order}:</span>
+                                                <span className="text-xs font-medium text-slate-800 dark:text-slate-200">{sr.stage_name}</span>
+                                                <StatusBadge status={sr.status === "QUALIFIED" ? "CLEARED" : "NOT CLEARED"} className="text-[10px] px-1.5 py-0" />
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
 
                             {drive.placement?.package_ctc && (
                                 <p className="text-xs text-emerald-400 mt-2">
                                     Package: <span className="font-semibold">{drive.placement.package_ctc} LPA</span>
                                 </p>
                             )}
-                        </div>
-                    ))
+                            </div>
+                        );
+                    })
                 )}
             </div>
         </div>

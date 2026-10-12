@@ -23,6 +23,7 @@ export const Navbar: React.FC = () => {
 
             <div className="flex items-center space-x-4">
                 <button
+                    id="theme-toggle-button"
                     onClick={toggleTheme}
                     className="p-2 text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all"
                     title={`Switch to ${theme === 'light' ? 'Dark' : 'Light'} Mode`}

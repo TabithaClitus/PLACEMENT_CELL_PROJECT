@@ -7,16 +7,17 @@ CATEGORY_KEYWORDS = {
         "final selection", "placed", "offer", "offered", "selects"
     ],
     SheetCategory.PROGRESSION: [
-        "round", "shortlisted", "technical", "aptitude", "interview",
-        "assessment", "ab", "test", "screening", "coding", "lab test",
-        "design round", "selected"
+        "round", "technical", "aptitude", "interview",
+        "assessment", "test", "screening", "coding", "lab test",
+        "design round", "selected", "level", "hr", "personal hr", "technical hr"
     ],
     SheetCategory.REGISTERED: [
         "registration", "registered", "registration list", "master list",
-        "applied", "eligible list", "sheet1"
+        "applied", "eligible list", "shortlisted students", "sheet1", "overall", "list", "final list", "total registered"
     ],
     SheetCategory.IGNORE: [
-        "sheet2", "sheet3", "sheet4", "instructions", "pivot", "template", "sample"
+        "instructions", "pivot", "template", "sample", "declaration",
+        "xerox", "absent", "ab", "summary", "exception list"
     ]
 }
 
@@ -38,6 +39,12 @@ def classify_sheet(
         if any(kw in name_clean for kw in CATEGORY_KEYWORDS[SheetCategory.IGNORE]) or total_valid_records == 0:
             return SheetCategory.IGNORE, 1.0
 
+    # Definite IGNORE keywords check (absent list, xerox, summary, etc.)
+    if name_clean in ("ab", "absent", "xerox", "summary") or any(
+        kw in name_clean for kw in ["instructions", "pivot", "template", "sample", "declaration", "exception list"]
+    ):
+        return SheetCategory.IGNORE, 0.95
+
     # 1. PLACED check (Highest precedence for definitive offer lists)
     if any(kw in name_clean for kw in ["offer", "final select", "final selection", "placed"]):
         return SheetCategory.PLACED, 0.95
@@ -47,19 +54,18 @@ def classify_sheet(
     if "selected" in name_clean:
         if any(kw in name_clean for kw in ["round", "screening", "test", "lab"]):
             return SheetCategory.PROGRESSION, 0.90
-        # Otherwise, if standalone "selected" or "final", treat as PLACED or PROMPT FOR ADMIN CONFIRMATION
         return SheetCategory.PLACED, 0.75
 
-    # 3. PROGRESSION check
-    if any(kw in name_clean for kw in CATEGORY_KEYWORDS[SheetCategory.PROGRESSION]):
-        return SheetCategory.PROGRESSION, 0.90
-
-    # 4. REGISTERED check
+    # 3. REGISTERED check (Before general progression check so 'Shortlisted Students' or 'List' becomes REGISTERED)
     if any(kw in name_clean for kw in CATEGORY_KEYWORDS[SheetCategory.REGISTERED]):
         return SheetCategory.REGISTERED, 0.85
 
+    # 4. PROGRESSION check
+    if any(kw in name_clean for kw in CATEGORY_KEYWORDS[SheetCategory.PROGRESSION]):
+        return SheetCategory.PROGRESSION, 0.90
+
     # Default fallback based on record presence
     if total_valid_records > 0 and has_register_column:
-        return SheetCategory.UNKNOWN, 0.50
+        return SheetCategory.PROGRESSION, 0.60
 
     return SheetCategory.IGNORE, 0.90

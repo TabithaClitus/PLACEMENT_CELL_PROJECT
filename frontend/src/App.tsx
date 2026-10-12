@@ -8,10 +8,12 @@ import ExcelUploadPage from "./pages/ExcelUploadPage";
 import ImportPreviewPage from "./pages/ImportPreviewPage";
 import ImportHistoryPage from "./pages/ImportHistoryPage";
 import StudentsPage from "./pages/StudentsPage";
+import InternshipPage from "./pages/InternshipPage";
 import StudentDetailPage from "./pages/StudentDetailPage";
 import CompaniesPage from "./pages/CompaniesPage";
 import CompanyDetailPage from "./pages/CompanyDetailPage";
 import AnalyticsPage from "./pages/AnalyticsPage";
+import JDMatchingPage from "./pages/JDMatchingPage";
 
 // TODO: RESTORE AUTHENTICATION BEFORE PRODUCTION
 // DEMO MODE: LoginPage route removed — all paths redirect to /dashboard.
@@ -25,11 +27,13 @@ const App: React.FC = () => {
                         <Route element={<Layout />}>
                             <Route path="/" element={<Navigate to="/dashboard" replace />} />
                             <Route path="/dashboard" element={<DashboardPage />} />
+                            <Route path="/jd" element={<JDMatchingPage />} />
                             <Route path="/import/upload" element={<ExcelUploadPage />} />
                             <Route path="/import/preview" element={<ImportPreviewPage />} />
                             <Route path="/imports" element={<ImportHistoryPage />} />
                             <Route path="/students" element={<StudentsPage />} />
                             <Route path="/students/:registerNumber" element={<StudentDetailPage />} />
+                            <Route path="/internships" element={<InternshipPage />} />
                             <Route path="/companies" element={<CompaniesPage />} />
                             <Route path="/companies/:id" element={<CompanyDetailPage />} />
                             <Route path="/analytics" element={<AnalyticsPage />} />

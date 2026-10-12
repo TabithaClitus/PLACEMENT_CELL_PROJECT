@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.routers import auth
-from app.api import import_routes, student_routes, company_routes, analytics_routes
+from app.api import import_routes, student_routes, company_routes, analytics_routes, jd_routes, internship_routes
 
 logger = logging.getLogger("placement_cell")
 settings = get_settings()
@@ -43,6 +43,8 @@ def create_app() -> FastAPI:
     app.include_router(student_routes.router)
     app.include_router(company_routes.router)
     app.include_router(analytics_routes.router)
+    app.include_router(jd_routes.router)
+    app.include_router(internship_routes.router)
 
     @app.get("/api/health", tags=["Health"])
     def health_check():

@@ -93,11 +93,37 @@ def confirm_excel_import(
             sheet_stats: list[dict[str, Any]] = []
 
             stage_order = 1
+            # In-memory tracking to ensure idempotency and prevent duplicate inserts within session
+            seen_stage_students: set[tuple[int, int]] = set()
+            seen_placements: set[tuple[int, int]] = set()
+            seen_registrations: dict[tuple[int, int], StudentRegistration] = {}
 
-            for sheet in parsed_wb.parsed_sheets:
-                if sheet.is_empty or sheet.category == SheetCategory.IGNORE:
-                    continue
+            # Pre-compute sheet records and candidate progression sets
+            valid_sheets = [
+                s for s in parsed_wb.parsed_sheets
+                if not s.is_empty and s.category != SheetCategory.IGNORE
+            ]
 
+            sheet_valid_regs: dict[str, set[str]] = {}
+            for s in valid_sheets:
+                sheet_valid_regs[s.sheet_name] = {
+                    rec.register_number for rec in s.records
+                    if rec.register_number and rec.is_register_valid
+                }
+
+            progression_sheets = [s for s in valid_sheets if s.category == SheetCategory.PROGRESSION]
+            placed_sheets = [s for s in valid_sheets if s.category == SheetCategory.PLACED]
+
+            all_placed_regs: set[str] = set()
+            for ps in placed_sheets:
+                all_placed_regs.update(sheet_valid_regs.get(ps.sheet_name, set()))
+            for s in valid_sheets:
+                for rec in s.records:
+                    if (rec.status or "").upper() in ("OFFER", "OFFERED", "ACCEPTED", "PLACED"):
+                        if rec.register_number and rec.is_register_valid:
+                            all_placed_regs.add(rec.register_number)
+
+            for sheet in valid_sheets:
                 sheet_success = 0
                 sheet_errors = 0
 
@@ -125,24 +151,29 @@ def confirm_excel_import(
                                 student.department = rec.department
 
                         # Fetch or Create Registration
-                        reg = db.scalar(
-                            select(StudentRegistration).where(
-                                StudentRegistration.student_id == student.id,
-                                StudentRegistration.drive_id == drive.id
+                        reg_key = (drive.id, student.id)
+                        if reg_key in seen_registrations:
+                            reg = seen_registrations[reg_key]
+                        else:
+                            reg = db.scalar(
+                                select(StudentRegistration).where(
+                                    StudentRegistration.student_id == student.id,
+                                    StudentRegistration.drive_id == drive.id
+                                )
                             )
-                        )
-                        if not reg:
-                            reg = StudentRegistration(
-                                student_id=student.id,
-                                drive_id=drive.id,
-                                is_eligible=True
-                            )
-                            db.add(reg)
-                            db.flush()
+                            if not reg:
+                                reg = StudentRegistration(
+                                    student_id=student.id,
+                                    drive_id=drive.id,
+                                    is_eligible=True
+                                )
+                                db.add(reg)
+                                db.flush()
+                            seen_registrations[reg_key] = reg
 
                         sheet_success += 1
 
-                elif sheet.category in (SheetCategory.PROGRESSION, SheetCategory.PLACED):
+                elif sheet.category in (SheetCategory.PROGRESSION, SheetCategory.PLACED, SheetCategory.UNKNOWN):
                     stage = db.scalar(
                         select(PlacementStage).where(
                             PlacementStage.drive_id == drive.id,
@@ -160,6 +191,20 @@ def confirm_excel_import(
                         db.flush()
                         stage_order += 1
 
+                    # Determine advancement logic for this progression stage
+                    is_progression = (sheet.category == SheetCategory.PROGRESSION)
+                    subsequent_regs: set[str] = set()
+                    is_last_prog_without_placed = False
+
+                    if is_progression and sheet in progression_sheets:
+                        prog_idx = progression_sheets.index(sheet)
+                        for next_s in progression_sheets[prog_idx + 1:]:
+                            subsequent_regs.update(sheet_valid_regs.get(next_s.sheet_name, set()))
+                        subsequent_regs.update(all_placed_regs)
+                        is_last_prog_without_placed = (prog_idx == len(progression_sheets) - 1 and len(placed_sheets) == 0)
+
+                    has_status_col = (sheet.column_mapping.get("status") is not None)
+
                     for rec in sheet.records:
                         if not rec.register_number or not rec.is_register_valid:
                             sheet_errors += 1
@@ -176,65 +221,97 @@ def confirm_excel_import(
                             db.add(student)
                             db.flush()
 
-                        reg = db.scalar(
-                            select(StudentRegistration).where(
-                                StudentRegistration.student_id == student.id,
-                                StudentRegistration.drive_id == drive.id
-                            )
-                        )
-                        if not reg:
-                            reg = StudentRegistration(
-                                student_id=student.id,
-                                drive_id=drive.id,
-                                is_eligible=True
-                            )
-                            db.add(reg)
-                            db.flush()
-
-                        # Normalize Stage Status
-                        raw_status = (rec.status or "QUALIFIED").upper()
-                        if raw_status in ("OFFER", "OFFERED", "ACCEPTED", "PLACED"):
-                            normalized_status = "QUALIFIED"  # Stage result status
+                        reg_key = (drive.id, student.id)
+                        if reg_key in seen_registrations:
+                            reg = seen_registrations[reg_key]
                         else:
-                            normalized_status = raw_status
+                            reg = db.scalar(
+                                select(StudentRegistration).where(
+                                    StudentRegistration.student_id == student.id,
+                                    StudentRegistration.drive_id == drive.id
+                                )
+                            )
+                            if not reg:
+                                reg = StudentRegistration(
+                                    student_id=student.id,
+                                    drive_id=drive.id,
+                                    is_eligible=True
+                                )
+                                db.add(reg)
+                                db.flush()
+                            seen_registrations[reg_key] = reg
 
-                        stage_res = db.scalar(
-                            select(StudentStageResult).where(
-                                StudentStageResult.registration_id == reg.id,
-                                StudentStageResult.stage_id == stage.id
-                            )
-                        )
-                        if not stage_res:
-                            stage_res = StudentStageResult(
-                                stage_id=stage.id,
-                                student_id=student.id,
-                                registration_id=reg.id,
-                                status=normalized_status
-                            )
-                            db.add(stage_res)
+                        # Determine if candidate CLEARED this stage:
+                        # 1. In PLACED sheets: all candidates qualified/placed.
+                        # 2. In PROGRESSION sheets:
+                        #    - If candidate appears in subsequent stages or offer: CLEARED (QUALIFIED).
+                        #    - If last stage without separate placed sheet and not rejected: CLEARED (QUALIFIED).
+                        #    - If sheet has explicit status column showing qualification: CLEARED (QUALIFIED).
+                        #    - Otherwise: candidate only participated / registered for this stage without clearing it (NOT_CLEARED).
+                        raw_status = (rec.status or "").upper()
+                        if sheet.category == SheetCategory.PLACED or raw_status in ("OFFER", "OFFERED", "ACCEPTED", "PLACED"):
+                            normalized_status = "QUALIFIED"
+                        elif is_progression:
+                            advances = rec.register_number in subsequent_regs
+                            explicit_failed = raw_status in ("DISQUALIFIED", "ABSENT", "REJECTED", "FAIL", "FAILED", "NOT_CLEARED")
+                            if explicit_failed:
+                                normalized_status = "NOT_CLEARED"
+                            elif advances:
+                                normalized_status = "QUALIFIED"
+                            elif is_last_prog_without_placed:
+                                normalized_status = "QUALIFIED"
+                            elif has_status_col and raw_status in ("QUALIFIED", "SELECTED", "SHORTLISTED", "PASS", "PRESENT"):
+                                normalized_status = "QUALIFIED"
+                            else:
+                                normalized_status = "NOT_CLEARED"
                         else:
-                            stage_res.status = normalized_status
+                            normalized_status = "QUALIFIED"
+
+                        stage_student_key = (stage.id, student.id)
+                        if stage_student_key not in seen_stage_students:
+                            stage_res = db.scalar(
+                                select(StudentStageResult).where(
+                                    StudentStageResult.stage_id == stage.id,
+                                    StudentStageResult.student_id == student.id
+                                )
+                            )
+                            if not stage_res:
+                                stage_res = StudentStageResult(
+                                    stage_id=stage.id,
+                                    student_id=student.id,
+                                    registration_id=reg.id,
+                                    status=normalized_status
+                                )
+                                db.add(stage_res)
+                                db.flush()
+                            else:
+                                stage_res.status = normalized_status
+                            seen_stage_students.add(stage_student_key)
 
                         # Rule 7 & 8: Normalize OFFER / OFFERED / ACCEPTED -> PLACED
                         if sheet.category == SheetCategory.PLACED or raw_status in ("OFFER", "OFFERED", "ACCEPTED", "PLACED"):
-                            placement = db.scalar(
-                                select(Placement).where(
-                                    Placement.student_id == student.id,
-                                    Placement.drive_id == drive.id
+                            placement_key = (drive.id, student.id)
+                            if placement_key not in seen_placements:
+                                placement = db.scalar(
+                                    select(Placement).where(
+                                        Placement.student_id == student.id,
+                                        Placement.drive_id == drive.id
+                                    )
                                 )
-                            )
-                            if not placement:
-                                placement = Placement(
-                                    student_id=student.id,
-                                    drive_id=drive.id,
-                                    registration_id=reg.id,
-                                    stage_id=stage.id,
-                                    status="PLACED",  # Always normalize OFFER/OFFERED/ACCEPTED to PLACED
-                                    package_ctc=6.5
-                                )
-                                db.add(placement)
-                            else:
-                                placement.status = "PLACED"
+                                if not placement:
+                                    placement = Placement(
+                                        student_id=student.id,
+                                        drive_id=drive.id,
+                                        registration_id=reg.id,
+                                        stage_id=stage.id,
+                                        status="PLACED",  # Always normalize OFFER/OFFERED/ACCEPTED to PLACED
+                                        package_ctc=6.5
+                                    )
+                                    db.add(placement)
+                                    db.flush()
+                                else:
+                                    placement.status = "PLACED"
+                                seen_placements.add(placement_key)
 
                         sheet_success += 1
 

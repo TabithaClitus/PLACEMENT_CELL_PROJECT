@@ -203,12 +203,27 @@ async def get_student_detail_endpoint(
             )
         )
 
+        cleared_stages = [stage for sr, stage in stage_res_rows if sr.status == "QUALIFIED"]
+        max_cleared_order = max([s.stage_order for s in cleared_stages], default=0)
+
+        if placement:
+            drive_status = "PLACED"
+            highest_round = "Placed"
+        elif max_cleared_order > 0:
+            drive_status = f"Round {max_cleared_order}"
+            highest_round = f"Round {max_cleared_order}"
+        else:
+            drive_status = "REGISTERED"
+            highest_round = "Registered"
+
         drives_history.append({
             "drive_id": drive.id,
             "drive_name": drive.drive_name,
             "company_id": company.id,
             "company_name": company.name,
             "academic_year": drive.academic_year,
+            "drive_status": drive_status,
+            "highest_round": highest_round,
             "stage_results": stage_results,
             "placement": {
                 "status": placement.status,

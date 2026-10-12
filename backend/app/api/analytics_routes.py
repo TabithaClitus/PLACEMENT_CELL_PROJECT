@@ -285,14 +285,21 @@ async def get_student_analytics_endpoint(
         if is_placed:
             placed_companies += 1
             c_status = "PLACED"
+            highest_round_display = "Placed"
         else:
             unplaced_companies += 1
-            c_status = "NOT PLACED"
+            if max_round > 0:
+                c_status = f"Round {max_round}"
+                highest_round_display = f"Round {max_round}"
+            else:
+                c_status = "REGISTERED"
+                highest_round_display = "Registered"
 
         company_breakdown.append({
             "drive_id": reg.drive_id,
             "company_name": company_name,
-            "highest_round_reached": max_round,
+            "highest_round_reached": highest_round_display,
+            "highest_round_number": max_round,
             "status": c_status
         })
 

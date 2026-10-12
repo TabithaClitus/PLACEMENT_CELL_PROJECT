@@ -7,13 +7,17 @@ import {
     Users,
     Building2,
     BarChart3,
+    FileText,
+    Briefcase,
 } from "lucide-react";
 
 const navItems = [
     { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+    { to: "/jd", label: "JD", icon: FileText },
     { to: "/import/upload", label: "Upload Excel", icon: Upload },
     { to: "/imports", label: "Import History", icon: History },
     { to: "/students", label: "Students", icon: Users },
+    { to: "/internships", label: "Internship", icon: Briefcase },
     { to: "/companies", label: "Companies", icon: Building2 },
     { to: "/analytics", label: "Analytics", icon: BarChart3 },
 ];

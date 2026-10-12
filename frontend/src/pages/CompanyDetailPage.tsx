@@ -48,6 +48,8 @@ interface StudentRow {
     department: string;
     drive_name: string;
     is_placed: boolean;
+    candidate_status?: string;
+    highest_round?: string;
     package_ctc: number | null;
 }
 
@@ -348,7 +350,7 @@ const CompanyDetailPage: React.FC = () => {
                                             <td className="px-4 py-2.5 text-slate-900 dark:text-white font-medium">{s.full_name}</td>
                                             <td className="px-4 py-2.5 text-slate-700 dark:text-slate-300">{s.department}</td>
                                             <td className="px-4 py-2.5 text-slate-700 dark:text-slate-300 text-xs">{s.drive_name}</td>
-                                            <td className="px-4 py-2.5"><StatusBadge status={s.is_placed ? "PLACED" : "REGISTERED"} /></td>
+                                            <td className="px-4 py-2.5"><StatusBadge status={s.candidate_status || (s.is_placed ? "PLACED" : "REGISTERED")} /></td>
                                             <td className="px-4 py-2.5 text-right text-emerald-400">{s.package_ctc ? `${s.package_ctc} LPA` : "—"}</td>
                                             <td className="px-4 py-2.5 text-center">
                                                 <Link to={`/students/${s.register_number}`} className="text-indigo-400 hover:text-indigo-300"><ExternalLink className="w-4 h-4" /></Link>

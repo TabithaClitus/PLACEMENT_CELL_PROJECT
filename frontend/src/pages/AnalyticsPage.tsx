@@ -67,7 +67,7 @@ interface StudentAnalytics {
     company_breakdown: Array<{
         drive_id: number;
         company_name: string;
-        highest_round_reached: number;
+        highest_round_reached: string | number;
         status: string;
     }>;
 }
@@ -349,7 +349,11 @@ const AnalyticsPage: React.FC = () => {
                                         {studentData.company_breakdown.map((cb, idx) => (
                                             <tr key={idx}>
                                                 <td className="px-3 py-2 text-slate-900 dark:text-white font-medium">{cb.company_name}</td>
-                                                <td className="px-3 py-2 text-center text-cyan-600 dark:text-cyan-400 font-mono font-semibold">Round {cb.highest_round_reached}</td>
+                                                <td className="px-3 py-2 text-center text-cyan-600 dark:text-cyan-400 font-mono font-semibold">
+                                                    {cb.highest_round_reached === 0 || cb.highest_round_reached === "0" || cb.highest_round_reached === "Registered" || !cb.highest_round_reached
+                                                        ? "Registered"
+                                                        : (typeof cb.highest_round_reached === "number" ? `Round ${cb.highest_round_reached}` : cb.highest_round_reached)}
+                                                </td>
                                                 <td className="px-3 py-2"><StatusBadge status={cb.status} /></td>
                                             </tr>
                                         ))}
