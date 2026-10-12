@@ -1,14 +1,37 @@
 import axios from "axios";
 
-const API_BASE_URL =
-    import.meta.env.VITE_API_URL || "http://localhost:8000";
+let envUrl = (import.meta.env.VITE_API_URL || "").trim();
+if (envUrl && !envUrl.startsWith("http://") && !envUrl.startsWith("https://")) {
+    envUrl = `https://${envUrl}`;
+}
+
+const getBaseUrl = (): string => {
+    const customUrl = localStorage.getItem("API_URL");
+    if (customUrl && customUrl.trim()) {
+        let clean = customUrl.trim();
+        return clean.startsWith("http") ? clean : `https://${clean}`;
+    }
+    return envUrl || "http://localhost:8000";
+};
 
 export const api = axios.create({
-    baseURL: API_BASE_URL,
+    baseURL: getBaseUrl(),
     headers: {
         "Content-Type": "application/json",
     },
 });
+
+api.interceptors.request.use(
+    (config) => {
+        config.baseURL = getBaseUrl();
+        const token = localStorage.getItem("token");
+        if (token) {
+            config.headers.Authorization = `Bearer ${token}`;
+        }
+        return config;
+    },
+    (error) => Promise.reject(error)
+);
 
 // TODO: RESTORE AUTHENTICATION BEFORE PRODUCTION
 // In demo mode, token is optional; if present in localStorage, it will be attached.
