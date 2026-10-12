@@ -16,6 +16,12 @@ settings = get_settings()
 async def lifespan(app: FastAPI):
     """Startup / shutdown lifecycle events."""
     logger.info("Placement Cell API starting up…")
+    try:
+        from app.database import engine, Base
+        import app.models  # noqa: F401
+        Base.metadata.create_all(bind=engine)
+    except Exception as exc:
+        logger.warning("Auto table check note: %s", exc)
     yield
     logger.info("Placement Cell API shutting down…")
 
@@ -28,10 +34,11 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
-    # Configurable CORS
+    # Configurable CORS with Render origin support
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.cors_origins,
+        allow_origins=settings.cors_origins + ["https://placement-cell-frontend.onrender.com"],
+        allow_origin_regex=r"https://.*\.onrender\.com",
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
