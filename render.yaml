@@ -18,13 +18,12 @@ services:
         value: 1440
 
   # Frontend Static Site
-  - type: static
+  - type: web
     name: placement-cell-frontend
+    runtime: static
     buildCommand: cd frontend && npm install && npm run build
     staticPublishPath: frontend/dist
     routes:
       - type: rewrite
         source: /*
         destination: /index.html
-
-
